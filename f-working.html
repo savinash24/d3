@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic D3 Lines with Group Movement</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* Style for the reference lines (solid) */
+        .ref-line {
+            stroke: blue; /* Reference line 1 color */
+            stroke-width: 2;
+        }
+
+        /* Style for the dynamic lines (dotted) */
+        .dynamic-line {
+            fill: none;
+            cursor: pointer;
+            stroke-width: 2;
+        }
+
+        /* Style for the highlighted dynamic lines */
+        .dynamic-line.selected {
+            stroke-width: 4; /* Make selected lines thicker */
+            stroke-opacity: 0.8; /* Make selected lines more visible */
+        }
+    </style>
+</head>
+<body>
+    <svg width="800" height="400"></svg>
+
+    <script>
+        // Set up SVG canvas dimensions
+        const svg = d3.select("svg"),
+            margin = { top: 20, right: 30, bottom: 30, left: 40 },
+            width = +svg.attr("width") - margin.left - margin.right,
+            height = +svg.attr("height") - margin.top - margin.bottom;
+
+        // Append g element for the chart
+        const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Time-based x scale and linear y scale
+        const x = d3.scaleTime().range([0, width]);
+        const y = d3.scaleLinear().range([height, 0]);
+
+        // Axes
+        const xAxis = g.append("g").attr("transform", `translate(0,${height})`);
+        const yAxis = g.append("g");
+
+        // Define a line generator
+        const lineGenerator = d3.line()
+            .x(d => x(d.time))
+            .y(d => y(d.value));
+
+        // Sample reference line data (fixed with respect to time)
+        let refData1 = [
+            { time: new Date(2024, 8, 18), value: 22 },
+            { time: new Date(2024, 8, 19), value: 50 },
+            { time: new Date(2024, 8, 20), value: 70 },
+            { time: new Date(2024, 8, 21), value: 60 },
+            { time: new Date(2024, 8, 22), value: 60 }
+        ];
+
+        let refData2 = [
+            { time: new Date(2024, 8, 18), value: 66 },
+            { time: new Date(2024, 8, 19), value: 40 },
+            { time: new Date(2024, 8, 20), value: 80 },
+            { time: new Date(2024, 8, 21), value: 65 },
+            { time: new Date(2024, 8, 22), value: 60 }
+        ];
+
+        // Dynamic lines data (movable) with groups
+        let dynamicLines = [
+            {
+                color: "green",
+                data: [
+                    { time: new Date(2024, 8, 19), value: 30 },
+                    // { time: new Date(2024, 8, 20), value: 60 },
+                    { time: new Date(2024, 8, 21), value: 50 }
+                ],
+                id: 0,
+                group: 1 // Group 1
+            },
+            {
+                color: "orange",
+                data: [
+                    // { time: new Date(2024, 8, 19), value: 20 },
+                    { time: new Date(2024, 8, 20), value: 50 },
+                    { time: new Date(2024, 8, 21), value: 45 }
+                ],
+                id: 1,
+                group: 1 // Group 1
+            },
+            {
+                color: "purple",
+                data: [
+                    { time: new Date(2024, 8, 19), value: 10 },
+                    { time: new Date(2024, 8, 20), value: 40 },
+                    // { time: new Date(2024, 8, 21), value: 30 }
+                ],
+                id: 2,
+                group: 2 // Group 2
+            }
+        ];
+
+        // Set the domains of the scales
+        const allTimes = [
+            ...refData1.map(d => d.time),
+            ...refData2.map(d => d.time),
+            ...dynamicLines.flatMap(line => line.data.map(d => d.time))
+        ];
+
+        const allValues = [
+            ...refData1.map(d => d.value),
+            ...refData2.map(d => d.value),
+            ...dynamicLines.flatMap(line => line.data.map(d => d.value))
+        ];
+
+        x.domain(d3.extent(allTimes));
+        y.domain([0, d3.max(allValues)]);
+
+        // Add the fixed reference lines
+        g.append("path")
+            .datum(refData1)
+            .attr("class", "ref-line")
+            .attr("fill", "none")
+            .attr("d", lineGenerator);
+
+        g.append("path")
+            .datum(refData2)
+            .attr("class", "ref-line")
+            .attr("fill", "none")
+            .attr("d", lineGenerator);
+
+        // Add axes
+        xAxis.call(d3.axisBottom(x));
+        yAxis.call(d3.axisLeft(y));
+
+        // Add dynamic lines
+        function drawLines() {
+            g.selectAll(".dynamic-line").remove();  // Clear only the dynamic lines
+
+            dynamicLines.forEach(line => {
+                const path = g.append("path")
+                    .datum(line.data)
+                    .attr("class", `dynamic-line ${line.selected ? 'selected' : ''}`)
+                    .attr("fill", "none")
+                    .attr("stroke", line.color)
+                    .attr("stroke-dasharray", "4, 4")  // Dotted style for dynamic lines
+                    .attr("id", `line-${line.id}`)
+                    .attr("d", lineGenerator)  // Draw the line
+                    .on("click", () => selectLine(line.group));  // Select line group on click
+            });
+        }
+
+        // Draw dynamic lines initially
+        drawLines();
+
+        // Function to select a line group by group ID
+        function selectLine(groupId) {
+            dynamicLines.forEach(line => {
+                line.selected = (line.group === groupId) ? !line.selected : false;  // Toggle selection for the group
+            });
+            drawLines();  // Redraw lines with updated selection state
+        }
+
+        // Function to check if the movement is valid
+        function canMoveLeft() {
+            return dynamicLines.some(line => line.selected && line.data[line.data.length - 1].time > x.domain()[0]);
+        }
+
+        function canMoveRight() {
+            return dynamicLines.some(line => line.selected && line.data[0].time < x.domain()[1]);
+        }
+
+        // Function to move the selected group of lines
+        function moveSelectedGroup(moveAmount) {
+            if (moveAmount < 0 && canMoveLeft()) {
+                dynamicLines.forEach(line => {
+                    if (line.selected) {
+                        line.data.forEach(d => {
+                            d.time = new Date(d.time.getTime() + moveAmount);
+                        });
+                    }
+                });
+            } else if (moveAmount > 0 && canMoveRight()) {
+                dynamicLines.forEach(line => {
+                    if (line.selected) {
+                        line.data.forEach(d => {
+                            d.time = new Date(d.time.getTime() + moveAmount);
+                        });
+                    }
+                });
+            }
+
+            drawLines();  // Redraw lines with the updated data
+        }
+
+        // Event listener for keyboard input
+        document.addEventListener("keydown", (event) => {
+            const moveAmount = 1000 * 60 * 60 * 24;  // Move by one day
+
+            if (event.key === "ArrowLeft") {
+                moveSelectedGroup(-moveAmount);
+            } else if (event.key === "ArrowRight") {
+                moveSelectedGroup(moveAmount);
+            }
+        });
+    </script>
+</body>
+</html>
