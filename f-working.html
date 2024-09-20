@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +9,8 @@
     <style>
         /* Style for the reference lines (solid) */
         .ref-line {
-            stroke: blue; /* Reference line 1 color */
+            stroke: blue;
+            /* Reference line 1 color */
             stroke-width: 2;
         }
 
@@ -21,11 +23,14 @@
 
         /* Style for the highlighted dynamic lines */
         .dynamic-line.selected {
-            stroke-width: 4; /* Make selected lines thicker */
-            stroke-opacity: 0.8; /* Make selected lines more visible */
+            stroke-width: 4;
+            /* Make selected lines thicker */
+            stroke-opacity: 0.8;
+            /* Make selected lines more visible */
         }
     </style>
 </head>
+
 <body>
     <svg width="800" height="400"></svg>
 
@@ -52,22 +57,35 @@
             .x(d => x(d.time))
             .y(d => y(d.value));
 
-        // Sample reference line data (fixed with respect to time)
-        let refData1 = [
-            { time: new Date(2024, 8, 18), value: 22 },
-            { time: new Date(2024, 8, 19), value: 50 },
-            { time: new Date(2024, 8, 20), value: 70 },
-            { time: new Date(2024, 8, 21), value: 60 },
-            { time: new Date(2024, 8, 22), value: 60 }
-        ];
 
-        let refData2 = [
-            { time: new Date(2024, 8, 18), value: 66 },
-            { time: new Date(2024, 8, 19), value: 40 },
-            { time: new Date(2024, 8, 20), value: 80 },
-            { time: new Date(2024, 8, 21), value: 65 },
-            { time: new Date(2024, 8, 22), value: 60 }
-        ];
+        const staticLines = [
+            // Parameter line 1
+            {
+                color: "red",
+                data: [
+                    { time: new Date(2024, 8, 18), value: 22, process: 'p1' },
+                    { time: new Date(2024, 8, 19), value: 50, process: 'p1' },
+                    { time: new Date(2024, 8, 20), value: 70, process: 'p2' },
+                    { time: new Date(2024, 8, 21), value: 60, process: 'p2' },
+                    { time: new Date(2024, 8, 22), value: 60, process: 'p3' }
+                ],
+                id: 0,
+                parameter: 1 // Group 1
+            },
+            // Parameter line 2
+            {
+                color: "yellow",
+                data: [
+                    { time: new Date(2024, 8, 18), value: 66, process: 'p1' },
+                    { time: new Date(2024, 8, 19), value: 40, process: 'p1' },
+                    { time: new Date(2024, 8, 20), value: 80, process: 'p2' },
+                    { time: new Date(2024, 8, 21), value: 65, process: 'p2' },
+                    { time: new Date(2024, 8, 22), value: 60, process: 'p3' }
+                ],
+                id: 1,
+                parameter: 2 // Group 1
+            },
+        ]
 
         // Dynamic lines data (movable) with groups
         let dynamicLines = [
@@ -99,38 +117,60 @@
                     // { time: new Date(2024, 8, 21), value: 30 }
                 ],
                 id: 2,
-                group: 2 // Group 2
+                group: 1 // Group 2
             }
         ];
 
         // Set the domains of the scales
         const allTimes = [
-            ...refData1.map(d => d.time),
-            ...refData2.map(d => d.time),
+            ...staticLines.flatMap(line => line.data.map(d => d.time)),
             ...dynamicLines.flatMap(line => line.data.map(d => d.time))
         ];
 
         const allValues = [
-            ...refData1.map(d => d.value),
-            ...refData2.map(d => d.value),
+            ...staticLines.flatMap(line => line.data.map(d => d.value)),
             ...dynamicLines.flatMap(line => line.data.map(d => d.value))
         ];
 
         x.domain(d3.extent(allTimes));
         y.domain([0, d3.max(allValues)]);
+        // draw static lines
+        // for (const eachLine of staticLines) {
+        //     g.append("path").datum(eachLine.data)
+        //         .attr("stroke", eachLine.color)
+        //         .attr("fill", "none")
+        //         .attr("d", lineGenerator)
+        // }
+        // Function to draw static lines with process change markers
+        function drawStaticLines() {
+            staticLines.forEach(eachLine => {
+                // Draw the main line
+                g.append("path")
+                    .datum(eachLine.data)
+                    .attr("stroke", eachLine.color)
+                    .attr("fill", "none")
+                    .attr("d", lineGenerator);
 
-        // Add the fixed reference lines
-        g.append("path")
-            .datum(refData1)
-            .attr("class", "ref-line")
-            .attr("fill", "none")
-            .attr("d", lineGenerator);
+                // Iterate through data to find process changes
+                for (let i = 1; i < eachLine.data.length; i++) {
+                    if (eachLine.data[i].process !== eachLine.data[i - 1].process) {
+                        // Draw vertical line for process change
+                        const xPos = x(eachLine.data[i].time);
+                        g.append("line")
+                            .attr("x1", xPos)
+                            .attr("y1", 0)
+                            .attr("x2", xPos)
+                            .attr("y2", height)
+                            .attr("stroke", "black")  // Color for process change lines
+                            // .attr("stroke-dasharray", "5, 5");  // Dashed line style
+                    }
+                }
+            });
+        }
 
-        g.append("path")
-            .datum(refData2)
-            .attr("class", "ref-line")
-            .attr("fill", "none")
-            .attr("d", lineGenerator);
+        // Call the function to draw static lines
+        drawStaticLines();
+
 
         // Add axes
         xAxis.call(d3.axisBottom(x));
@@ -198,7 +238,7 @@
 
         // Event listener for keyboard input
         document.addEventListener("keydown", (event) => {
-            const moveAmount = 1000 * 60 * 60 * 24;  // Move by one day
+            const moveAmount = 1000 * 60 * 60 * 24;
 
             if (event.key === "ArrowLeft") {
                 moveSelectedGroup(-moveAmount);
@@ -208,4 +248,5 @@
         });
     </script>
 </body>
+
 </html>
